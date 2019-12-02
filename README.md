@@ -19,5 +19,16 @@ As you work your way through the steps you can compare your work by selecting th
 
 We will use a UI component first then Zome code with automated tests to build each feature of the hApp. UI components will be built with React and we will use Storybook to render the components in their various states which will define the data structures we need. Unit tests will be written as we develop to confirm the UI and the data structures. Once the UI states and data strutures are confirmed we will build the Holochain Zome using the scaffolding tools and write scenario tests with the Holochain test framework Try-O-Rama. A limited number of happy path End 2 End Integration tests will be written in Cypress.io.
 
+Please remember I am assuming you know how to use the tools I am uisng, please read their various docs.
 
 
+## Let's get started
+
+We will be developing the UI and DNA in the same repo and be using the holonix nix-shell and **npm** to simplify the terminal commands speed up development. If you have no idea what that means please go read the developer docs referenced above.
+
+- [ ] Create 2 folders **ui-src** & **dna-src**
+- [ ] Run nix-shell ```nix-shell https://holochain.love```
+- [ ] Initialise npm in the root folder ```npm init```
+- [ ] Install React ```npx create-react-app . ``` & Storybook ``` npx -p @storybook/cli sb init --type react ``` in the **ui-src** folder
+- [ ] Check they both work ```yarn start``` & ```yarn storybook```
+- [ ] 
