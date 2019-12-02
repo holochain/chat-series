@@ -1,0 +1,23 @@
+{
+  "name": "chat-series",
+  "version": "0.0.1",
+  "description": "A full featured Holochain P2P Chat hApp",
+  "main": "index.js",
+  "scripts": {
+    "test": "cd dna-src && hc test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/holochain/chat-series.git"
+  },
+  "keywords": [
+    "Holochain",
+    "Chat"
+  ],
+  "author": "Philip Beadle <philip.beadle@holo.host>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/holochain/chat-series/issues"
+  },
+  "homepage": "https://github.com/holochain/chat-series#readme"
+}
