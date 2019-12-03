@@ -31,4 +31,87 @@ We will be developing the UI and DNA in the same repo and be using the holonix n
 - [ ] Initialise npm in the root folder ```npm init```
 - [ ] Install React ```npx create-react-app . ``` & Storybook ``` npx -p @storybook/cli sb init --type react ``` in the **ui-src** folder
 - [ ] Check they both work ```yarn start``` & ```yarn storybook```
-- [ ] 
+
+Storybook uses a new Component Story Format which is a lot more concise than previous versions and they are working on using MDX sa a way of writing live docs.
+Next thing is to set up to be able to write a unit test with Enzyme that can both run in Storybook and Jest.
+- [ ] Install Enzyme ```yarn add -D enzyme enzyme-adapter-react-16```
+- [ ] Install the Storybook addon ```yarn add -D storybook-addon-specifications```
+- [ ] Add this line to your addons.js ```import 'storybook-addon-specifications/register';```
+
+Firstly we'll get a simple spec running on the existing button story in **ui-src/stories/1-Button.stories.js**
+
+```
+import React from 'react';
+import { action } from '@storybook/addon-actions';
+import { Button } from '@storybook/react/demo';
+import { specs, describe, it } from 'storybook-addon-specifications';
+import { shallow, mount } from 'enzyme';
+import expect from 'expect';
+import { configure as enzymeConfigure } from 'enzyme'
+import Adapter from 'enzyme-adapter-react-16'
+
+enzymeConfigure({ adapter: new Adapter() })
+
+export default {
+  title: 'Button'
+};
+
+export const text = () => {
+  const story = (
+    <Button onClick={action('Hello World')}>
+      Hello World
+    </Button>
+  );
+
+  specs(() => describe('Text', function () {
+    it('Should have the Hello World label', function () {
+      let wrap = shallow(story);
+      expect(wrap.text()).toContain('Hello World');
+    });
+  }));
+
+  return story;
+}
+
+text.story = {
+  name: 'Text'
+}
+
+export const emoji = () => (
+  <Button onClick={action('clicked')}>
+    <span role="img" aria-label="so cool">
+      😀 😎 👍 💯
+    </span>
+  </Button>
+);
+
+```
+Now we will move that test into a test folder so Jest can run it too.
+
+- Add a setupTests.js file and move the Enzyme config to there.
+```import { configure as enzymeConfigure } from 'enzyme';
+import Adapter from 'enzyme-adapter-react-16';
+enzymeConfigure({ adapter: new Adapter() });
+```
+- Add a button.test.js file to the src folder
+```import React from 'react';
+import { shallow, mount } from 'enzyme';
+import { Button } from '@storybook/react/demo';
+
+export const buttonTests = describe('Text', function () {
+  const component = (
+    <Button>
+      Hello World
+    </Button>
+  );
+  it('Should have the Hello World label', function () {
+    let wrap = mount(component);
+    expect(wrap.text()).toContain('Hello World');
+  });
+})
+```
+- Import the button.test.js into the story ```import { buttonTests } from '../src/button.test'```
+- Change the specs to ```specs(() => buttonTests);```
+
+You can now run the tests with ```yarn test``` and they will also show up as specs in Storybook.
+
