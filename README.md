@@ -1,5 +1,5 @@
 # Developing a Full Featured P2P Chat hApp for Holochain - Series
-> [name="Philip Beadle"]
+> Philip Beadle
 ## Introduction
 Over the last 18 months or so I have been building various hApps to demonstrate various Holochain features and to test out Holochain from a hApp developers point of view. Most of that work was done in the [Identity Manager](!https://github.com/holochain/identity-manager/) and various iterations of a chat hApp. Both of these hApps have now become quite complicated as they implement a large number of Holochain features and have had to be refactored as Holochain evolved. Thus they are not really useful as teaching tools and do not provide a navigable path to becoming a Holochain hApp developer. Whilst the team was in Barcelona November 2019 we came upm with the idea of a series of chat hApps that progressively add features to become a full featured chat hApp using a series of branches that show the development with step by step instructions in the README.md file of what was done. This README.md will be like a blog series and along with the explicit code steps will contain discussion around why things were done. The hApp will be built so that it runs in a development environment, in Holo and also Holoscape.
 
@@ -40,7 +40,7 @@ Next thing is to set up to be able to write a unit test with Enzyme that can bot
 
 Firstly we'll get a simple spec running on the existing button story in **ui-src/stories/1-Button.stories.js**
 
-```
+```jsx 
 import React from 'react';
 import { action } from '@storybook/addon-actions';
 import { Button } from '@storybook/react/demo';
@@ -89,12 +89,14 @@ export const emoji = () => (
 Now we will move that test into a test folder so Jest can run it too.
 
 - Add a setupTests.js file and move the Enzyme config to there.
-```import { configure as enzymeConfigure } from 'enzyme';
+```jsx
+import { configure as enzymeConfigure } from 'enzyme';
 import Adapter from 'enzyme-adapter-react-16';
 enzymeConfigure({ adapter: new Adapter() });
 ```
 - Add a button.test.js file to the src folder
-```import React from 'react';
+```jsx
+import React from 'react';
 import { shallow, mount } from 'enzyme';
 import { Button } from '@storybook/react/demo';
 
@@ -114,4 +116,84 @@ export const buttonTests = describe('Text', function () {
 - Change the specs to ```specs(() => buttonTests);```
 
 You can now run the tests with ```yarn test``` and they will also show up as specs in Storybook.
+At this point your code should look like https://github.com/holochain/chat-series/tree/9fa63370fe3b002a4f86b0d2ff8fb6a7b3463463
 
+## Create Message Form
+let's start building the chat interface. First thing to build is a way to create a message.
+
+This is what I did:
+- Create a folder called **components/CreateMessageForm**
+- Copy the **index.module.css** file from the Peer Chat [repo](!https://github.com/holochain/peer-chat/tree/develop/ui-src/src/components/CreateMessageForm)
+- Create an index.test.js file with 
+```jsx
+import React from 'react';
+import { mount } from 'enzyme';
+import { CreateMessageForm } from './index';
+
+export const createMessageFormTests = describe('Default', function () {
+  const component = (
+    <CreateMessageForm sendMessage={jest.fn()}/>
+  );
+  it('Renders witout crashing', function () {
+    mount(component);
+  });
+})
+```
+- run ```yarn test``` which will fail as there is no comonent yet
+- Write a new story in the *stories** folder 
+```jsx=
+import React from 'react';
+import { action } from '@storybook/addon-actions';
+import { CreateMessageForm } from '../src/components/CreateMessageForm/index';
+import { specs } from 'storybook-addon-specifications';
+import { createMessageFormTests } from '../src/components/CreateMessageForm/index.test'
+
+export default {
+  title: 'Create Message Form'
+};
+
+export const empty = () => {
+  const story = (
+    <CreateMessageForm sendMessage={action('Send the message')} />
+  );
+  specs(() => createMessageFormTests);
+  return story;
+}
+
+empty.story = {
+  name: 'Default'
+}
+```
+- Create the component **index.js**
+```jsx
+import React from 'react'
+import style from './index.module.css'
+
+export const CreateMessageForm = ({
+  sendMessage
+}) =>
+    <form
+      className={style.component}
+      onSubmit={e => {
+        e.preventDefault()
+        const message = e.target[0].value.trim()
+        if (message.length === 0) {
+          return
+        }
+        e.target[0].value = ''
+        sendMessage({
+            text: message
+          })
+      }}
+    >
+      <input
+        placeholder='Type a Message..'
+      />
+      <button type='submit'>
+        <svg>
+          <use xlinkHref='index.svg#send' />
+        </svg>
+      </button>
+    </form>
+```
+- Test and Story now work and you can see the specs in storybook and typing somehting in the form and clicking the arrow shows an action as well.
