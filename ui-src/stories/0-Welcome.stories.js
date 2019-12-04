@@ -6,8 +6,8 @@ export default {
   title: 'Welcome',
 };
 
-export const toStorybook = () => <Welcome showApp={linkTo('Button')} />;
+export const toPeerChat = () => <p>this is where we will put the chat window</p>;
 
-toStorybook.story = {
-  name: 'to Storybook',
+toPeerChat.story = {
+  name: 'to Peer Chat',
 };
