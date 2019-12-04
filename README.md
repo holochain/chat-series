@@ -1,5 +1,5 @@
 # Developing a Full Featured P2P Chat hApp for Holochain - Series
-> [name="Philip Beadle"]
+> Philip Beadle
 ## Introduction
 Over the last 18 months or so I have been building various hApps to demonstrate various Holochain features and to test out Holochain from a hApp developers point of view. Most of that work was done in the [Identity Manager](!https://github.com/holochain/identity-manager/) and various iterations of a chat hApp. Both of these hApps have now become quite complicated as they implement a large number of Holochain features and have had to be refactored as Holochain evolved. Thus they are not really useful as teaching tools and do not provide a navigable path to becoming a Holochain hApp developer. Whilst the team was in Barcelona November 2019 we came upm with the idea of a series of chat hApps that progressively add features to become a full featured chat hApp using a series of branches that show the development with step by step instructions in the README.md file of what was done. This README.md will be like a blog series and along with the explicit code steps will contain discussion around why things were done. The hApp will be built so that it runs in a development environment, in Holo and also Holoscape.
 
@@ -116,8 +116,7 @@ export const buttonTests = describe('Text', function () {
 - Change the specs to ```specs(() => buttonTests);```
 
 You can now run the tests with ```yarn test``` and they will also show up as specs in Storybook.
-
-At this poiunt your code should look like https://github.com/holochain/chat-series/tree/9fa63370fe3b002a4f86b0d2ff8fb6a7b3463463
+At this point your code should look like https://github.com/holochain/chat-series/tree/9fa63370fe3b002a4f86b0d2ff8fb6a7b3463463
 
 ## Create Message Form
 let's start building the chat interface. First thing to build is a way to create a message.
