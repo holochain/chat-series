@@ -1,5 +1,5 @@
 # Developing a Full Featured P2P Chat hApp for Holochain - Series
-> Philip Beadle
+> [name="Philip Beadle"]
 ## Introduction
 Over the last 18 months or so I have been building various hApps to demonstrate various Holochain features and to test out Holochain from a hApp developers point of view. Most of that work was done in the [Identity Manager](!https://github.com/holochain/identity-manager/) and various iterations of a chat hApp. Both of these hApps have now become quite complicated as they implement a large number of Holochain features and have had to be refactored as Holochain evolved. Thus they are not really useful as teaching tools and do not provide a navigable path to becoming a Holochain hApp developer. Whilst the team was in Barcelona November 2019 we came upm with the idea of a series of chat hApps that progressively add features to become a full featured chat hApp using a series of branches that show the development with step by step instructions in the README.md file of what was done. This README.md will be like a blog series and along with the explicit code steps will contain discussion around why things were done. The hApp will be built so that it runs in a development environment, in Holo and also Holoscape.
 
@@ -116,7 +116,8 @@ export const buttonTests = describe('Text', function () {
 - Change the specs to ```specs(() => buttonTests);```
 
 You can now run the tests with ```yarn test``` and they will also show up as specs in Storybook.
-At this point your code should look like https://github.com/holochain/chat-series/tree/9fa63370fe3b002a4f86b0d2ff8fb6a7b3463463
+
+At this poiunt your code should look like https://github.com/holochain/chat-series/tree/9fa63370fe3b002a4f86b0d2ff8fb6a7b3463463
 
 ## Create Message Form
 let's start building the chat interface. First thing to build is a way to create a message.
@@ -140,7 +141,7 @@ export const createMessageFormTests = describe('Default', function () {
 })
 ```
 - run ```yarn test``` which will fail as there is no comonent yet
-- Write a new story in the *stories** folder 
+- Write a [new story](!https://holochain.github.io/chat-series/?path=/story/create-message-form--empty) in the *stories** folder 
 ```jsx=
 import React from 'react';
 import { action } from '@storybook/addon-actions';
@@ -196,4 +197,279 @@ export const CreateMessageForm = ({
       </button>
     </form>
 ```
-- Test and Story now work and you can see the specs in storybook and typing somehting in the form and clicking the arrow shows an action as well.
+- Test and [Create Message Form Story](!https://holochain.github.io/chat-series/?path=/story/create-message-form--empty) now work and you can see the specs in storybook and typing something in the form and clicking the arrow shows an action as well.
+
+## Message List
+Now that we have a way to crete a message let's make a list to show them in. Same approach we just used, create the folder and copy the css from Peer Chat for both Message and MessageList. The MessageList component will render a list of Message components.
+
+- I wrote these tests for the Message component
+```jsx
+import React from 'react';
+import { mount } from 'enzyme';
+import { Message } from './index';
+
+export const messageTests = describe('With message', function () {
+  let props = {
+    message: {
+      id: 'messageid',
+      createdAt: Date.now(),
+      text: 'Here is the message text'
+    }
+  }
+  const time = timestamp => {
+    const date = new Date(timestamp * 1000)
+    const minutes = date.getMinutes()
+    return `${date.getHours()}:${minutes < 10 ? '0' + minutes : minutes}`
+  }
+  const component = (
+    <Message {...props}/>
+  );
+  it('Renders witout crashing', function () {
+    mount(component);
+  });
+  it('Shows the correct message', function () {
+    let wrap = mount(component);
+    expect(wrap.find('Linkify').text()).toEqual(props.message.text)
+  });
+  it('Shows the correct create at time', function () {
+    let wrap = mount(component);
+    expect(wrap.find('span[name="createAtTime"]').text()).toEqual(time(props.message.createdAt))
+  });
+})
+```
+- I wrote one [story for the Message](!https://holochain.github.io/chat-series/?path=/story/message--with-message)
+```jsx
+import React from 'react';
+import { action } from '@storybook/addon-actions';
+import { Message } from '../src/components/Message/index';
+import { specs } from 'storybook-addon-specifications';
+import { messageTests } from '../src/components/Message/index.test'
+
+export default {
+  title: 'Message'
+};
+
+export const withMessage = () => {
+  let props = {
+    message: {
+      id: 'messageid',
+      createdAt: Date.now(),
+      text: 'Here is the message text https://philt3r.com'
+    }
+  }
+  const story = (
+    <Message {...props} />
+  );
+  specs(() => messageTests);
+  return story;
+}
+
+withMessage.story = {
+  name: 'With message'
+}
+```
+- and this is the component 
+```jsx
+import React from 'react'
+import style from './index.module.css'
+import Linkify from 'react-linkify'
+
+const time = timestamp => {
+  const date = new Date(timestamp * 1000)
+  const minutes = date.getMinutes()
+  return `${date.getHours()}:${minutes < 10 ? '0' + minutes : minutes}`
+}
+
+export const Message = ({ message }) =>
+  <li key={message.id} className={style.component}>
+    <div>
+      <span name='createAtTime'>{time(message.createdAt)}</span>
+      <p>
+        <Linkify properties={{ target: '_blank' }}>{message.text}</Linkify>
+      </p>
+    </div>
+  </li>
+  ```
+
+Now we have a message component let's set up the List and write tests and Stories. Tests have a few more cases now and note how the Describe will match the Stories, this is so the Specs tab in Storybook shows the tests for the component in that state. this makes writing tests a bit more understandable as the tests relate to a specific state the component is in.
+
+- Write the tests
+```jsx
+import React from 'react';
+import { mount } from 'enzyme';
+import { MessageList } from './index';
+import { testMessages } from '../../testData/messageList';
+
+export const noMessageListTests = describe('No messages', function () {
+  let props = {
+    messages: []
+  }
+
+  const component = (
+    <MessageList {...props}/>
+  );
+  it('Renders witout crashing', function () {
+    mount(component);
+  });
+  it('Does not show any messages', function () {
+    let wrap = mount(component);
+    expect(wrap.find('Message').length).toEqual(0)
+  });
+  it('Shows the no messages message', function () {
+    let wrap = mount(component);
+    expect(wrap.find('h2').text()).toContain('No Messages Yet');
+  });
+})
+
+export const messageListTests = describe('Messages', function () {
+  let props = {
+    messages: testMessages
+  }
+
+  const component = (
+    <MessageList {...props}/>
+  );
+  it('Renders witout crashing', function () {
+    mount(component);
+  });
+  it('Shows the messages', function () {
+    let wrap = mount(component);
+    expect(wrap.find('Message').length).toEqual(3)
+  });
+  it('Shows the correct message', function () {
+    let wrap = mount(component);
+    expect(wrap.find('Message').first().text()).toContain('Message 1');
+  });
+})
+```
+- Write the stories for the two options of has [messages](!https://holochain.github.io/chat-series/?path=/story/message-list--messages) and [no messages](!https://holochain.github.io/chat-series/?path=/story/message-list--no-messages)
+```jsx
+import React from 'react';
+import { action } from '@storybook/addon-actions';
+import { MessageList } from '../src/components/MessageList/index';
+import { specs } from 'storybook-addon-specifications';
+import { noMessageListTests } from '../src/components/MessageList/index.test'
+import { messageListTests } from '../src/components/MessageList/index.test'
+import { testMessages } from '../src/testData/messageList';
+export default {
+  title: 'Message List'
+};
+
+export const noMessages = () => {
+  let props = {
+    messages: []
+  }
+  const story = (
+    <MessageList {...props} />
+  );
+  specs(() => noMessageListTests);
+  return story;
+}
+
+noMessages.story = {
+  name: 'No messages'
+}
+
+export const messages = () => {
+  let props = {
+    messages: testMessages
+  }
+  const story = (
+    <MessageList {...props} />
+  );
+  specs(() => messageListTests);
+  return story;
+}
+
+messages.story = {
+  name: 'Messages'
+}
+```
+- Write the component
+```jsx 
+import React from 'react'
+import style from './index.module.css'
+import { Message } from '../Message'
+
+const emptyList = (
+  <div className={style.empty}>
+    <span role='img' aria-label='post'>
+      📝
+    </span>
+    <h2>No Messages Yet</h2>
+    <p>Be the first to post in this conversation!</p>
+  </div>
+)
+
+export const MessageList = ({ messages = [] }) => (
+  <ul id='messages' className={style.component}>
+    {
+      messages.length > 0 ? (
+        <wrapper->
+          {
+            messages
+              .sort((a, b) => { return b.createdAt - a.createdAt })
+              .map(message => <Message message={message} />)
+          }
+        </wrapper->
+      ) : (
+        emptyList
+      )
+    }
+  </ul>
+)
+```
+
+Great we now have a way toi write a message and to show it in a list. Couple of other things I did was to put the test data in a separate file so it can be shared across the tests, stories and the welcome story. I modified the welcome story to show all the components as they will appear in the live application so we can see what it will [look like](!https://holochain.github.io/chat-series/?path=/story/welcome--to-peer-chat) and copied the index.css over from Peer Chat.
+```jsx
+import React from 'react';
+import '../src/index.css'
+import { action } from '@storybook/addon-actions';
+import { linkTo } from '@storybook/addon-links';
+import { CreateMessageForm } from '../src/components/CreateMessageForm/index';
+import { Message } from '../src/components/Message/index';
+import { MessageList } from '../src/components/MessageList/index';
+import { testMessages } from '../src/testData/messageList';
+
+
+export default {
+  title: 'Welcome',
+};
+
+export const toPeerChat = () => {
+  let messageListProps = {
+    messages: testMessages
+  }
+  let createMessageFormprops = {
+    sendMessage: action('Send the message')
+  }
+
+  const story = (
+    <main>
+      <section>
+        <col->
+          <a href="https://github.com/holochain/chat-series" alt="github repo for chat series"><h1>Peer Chat Developer Series</h1></a>
+          <MessageList {...messageListProps} />
+          <CreateMessageForm {...createMessageFormprops} />
+        </col->
+      </section>
+    </main>
+  );
+
+    return story
+};
+
+toPeerChat.story = {
+  name: 'to Peer Chat',
+};
+```
+
+At this point the UI does everything we need, is fully unit tested and has Stories so anyone can, including us, can see exactly what each component does. We also know that our message entry to store in Holochain looks like:
+```json=
+{
+    id: 'messageid1',
+    createdAt: timestamp.setMinutes(timestamp.getMinutes() - 90),
+    text: 'Message 1'
+  }
+```
+And we need a create message and a list messages function in our zome.
