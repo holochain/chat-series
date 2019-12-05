@@ -20,7 +20,7 @@ export const MessageList = ({ messages = [] }) => (
           {
             messages
               .sort((a, b) => { return b.createdAt - a.createdAt })
-              .map(message => Message(message))
+              .map(message => <Message message={message} />)
           }
         </wrapper->
       ) : (
