@@ -9,11 +9,11 @@ const time = timestamp => {
 }
 
 export const Message = ({ message }) =>
-    <li key={message.id} className={style.component}>
-      <div>
-        <span name='createAtTime'>{time(message.createdAt)}</span>
-        <p>
-          <Linkify properties={{ target: '_blank' }}>{message.text}</Linkify>
-        </p>
-      </div>
-    </li>
+  <li key={message.id} className={style.component}>
+    <div>
+      <span name='createAtTime'>{time(message.createdAt)}</span>
+      <p>
+        <Linkify properties={{ target: '_blank' }}>{message.text}</Linkify>
+      </p>
+    </div>
+  </li>

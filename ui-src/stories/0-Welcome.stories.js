@@ -7,7 +7,6 @@ import { Message } from '../src/components/Message/index';
 import { MessageList } from '../src/components/MessageList/index';
 import { testMessages } from '../src/testData/messageList';
 
-
 export default {
   title: 'Welcome',
 };
@@ -19,7 +18,6 @@ export const toPeerChat = () => {
   let createMessageFormprops = {
     sendMessage: action('Send the message')
   }
-
   const story = (
     <main>
       <section>
@@ -31,10 +29,9 @@ export const toPeerChat = () => {
       </section>
     </main>
   );
-
-    return story
+  return story
 };
 
 toPeerChat.story = {
-  name: 'to Peer Chat',
+  name: 'Super Basic Chat',
 };
