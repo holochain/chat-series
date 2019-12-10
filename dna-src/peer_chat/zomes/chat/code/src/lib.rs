@@ -102,8 +102,8 @@ mod chat {
     }
 
     #[zome_fn("hc_public")]
-    fn get_messages(anchor_type: String, anchor_text: String) -> ZomeApiResult<Vec<Message>> {
-        let anchor_address = holochain_anchors::create_anchor(anchor_type, anchor_text)?;
+    fn get_messages() -> ZomeApiResult<Vec<Message>> {
+        let anchor_address = holochain_anchors::create_anchor("messages".into(), "mine".into())?;
         hdk::utils::get_links_and_load_type(&anchor_address, LinkMatch::Exactly("message_link_to"), LinkMatch::Any)
     }
 }

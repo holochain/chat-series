@@ -6,7 +6,7 @@ import * as serviceWorker from './serviceWorker';
 import { connect } from '@holochain/hc-web-client'
 import { testMessages } from './testData/messageList';
 
-const REACT_APP_WEBSOCKET_INTERFACE = process.env.REACT_APP_WEBSOCKET_INTERFACE; // Use for debug
+const REACT_APP_WEBSOCKET_INTERFACE = process.env.REACT_APP_WEBSOCKET_INTERFACE  //'ws://localhost:10000' //
 
 export class View extends React.Component {
   constructor (props) {
@@ -25,11 +25,19 @@ export class View extends React.Component {
           id: 'text',
           createdAt: Math.floor(Date.now() / 1000),
           text: text
-        };
-        console.log(message);
+        }
+        this.setState({
+            messages: [ ...this.state.messages, message ]
+          })
         this.makeHolochainCall('peer-chat/chat/post_message', {message}, (result) => {
           console.log('message posted', result);
-        });
+        })
+      },
+      getMessages: () => {
+        this.makeHolochainCall('peer-chat/chat/get_messages', {}, (result) => {
+          console.log('messages retrieved', result.Ok);
+          this.setState({ messages: result.Ok });
+        })
       }
     };
   };
@@ -41,11 +49,22 @@ export class View extends React.Component {
     });
   };
 
+  componentDidMount () {
+    this.state.holochainConnection.then(({ callZome }) => {
+      console.log('Connected to Holochain Conductor');
+      this.setState({ connected: true });
+      callZome('peer-chat', 'chat', 'get_messages')({}).then((result) => {
+        console.log('List of Messages ' + JSON.parse(result));
+        this.setState({ messages: JSON.parse(result).Ok });
+      })
+    });
+  };
+
   render () {
     let props = {
       messages: this.state.messages,
       sendMessage: this.actions.sendMessage
-    }
+    };
     return (
       <App {...props} />
     );

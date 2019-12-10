@@ -52,7 +52,7 @@ orchestrator.registerScenario("Post two messages and check they can be listed.",
   const addr = await alice.call("chat", "chat", "post_message", {"entry" : {"id": "messageId1", "createdAt": 1234567, "text": "A test message"}})
   await alice.call("chat", "chat", "post_message", {"entry" : {"id": "messageId2", "createdAt": 1234568, "text": "A second test message"}})
   await s.consistency()
-  const all_messages = await alice.call("chat", "chat", "get_messages", {"anchor_type": "messages", "anchor_text": "mine"});
+  const all_messages = await alice.call("chat", "chat", "get_messages", {});
   t.deepEqual(all_messages.Ok.length, 2);
 })
 
