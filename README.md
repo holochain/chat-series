@@ -19,7 +19,7 @@ As you work your way through the steps you can compare your work by selecting th
 
 We will use a UI component first then Zome code with automated tests to build each feature of the hApp. UI components will be built with React and we will use Storybook to render the components in their various states which will define the data structures we need. Unit tests will be written as we develop to confirm the UI and the data structures. Once the UI states and data strutures are confirmed we will build the Holochain Zome using the scaffolding tools and write scenario tests with the Holochain test framework Try-O-Rama. A limited number of happy path End 2 End Integration tests will be written in Cypress.io.
 
-Please remember I am assuming you know how to use the tools I am uisng, please read their various docs.
+Please remember I am assuming you know how to use the tools I am uisng, please read their various docs. I am also publishing the Storybook as I go to [Github Pages](!https://holochain.github.io/chat-series) so you can see each component, each state it can be in and the unit tests for that state.
 
 
 ## Let's get started
@@ -472,4 +472,539 @@ At this point the UI does everything we need, is fully unit tested and has Stori
     text: 'Message 1'
   }
 ```
-And we need a create message and a list messages function in our zome.
+And we need a create message and a list messages function in our zome. Follow the steps in the tutorial https://developer.holochain.org/docs/tutorials/coreconcepts/hello_holo/ but make the project name **peer_chat** and the zome **chat**
+- Now update the structs and zome names etc in the generated lib.rs file to reflect the entry we designed above.
+```rust
+#![feature(proc_macro_hygiene)]
+#[macro_use]
+extern crate hdk;
+extern crate hdk_proc_macros;
+extern crate serde;
+#[macro_use]
+extern crate serde_derive;
+extern crate serde_json;
+#[macro_use]
+extern crate holochain_json_derive;
+
+use hdk::{
+    entry_definition::ValidatingEntryType,
+    error::ZomeApiResult,
+};
+use hdk::holochain_core_types::{
+    entry::Entry,
+    dna::entry_types::Sharing,
+};
+
+use hdk::holochain_json_api::{
+    json::JsonString,
+    error::JsonError
+};
+
+use hdk::holochain_persistence_api::{
+    cas::content::Address
+};
+
+use hdk_proc_macros::zome;
+
+#[derive(Serialize, Deserialize, Debug, DefaultJson,Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct Message {
+    id: String,
+    created_at: u32,
+    text: String
+}
+
+#[zome]
+mod chat {
+
+    #[init]
+    fn init() {
+        Ok(())
+    }
+
+    #[validate_agent]
+    pub fn validate_agent(validation_data: EntryValidationData<AgentId>) {
+        Ok(())
+    }
+
+    #[entry_def]
+     fn message_entry_def() -> ValidatingEntryType {
+        entry!(
+            name: "message",
+            description: "The message in a chat list",
+            sharing: Sharing::Public,
+            validation_package: || {
+                hdk::ValidationPackageDefinition::Entry
+            },
+            validation: | _validation_data: hdk::EntryValidationData<Message>| {
+                Ok(())
+            }
+        )
+    }
+
+    #[zome_fn("hc_public")]
+    fn post_message(entry: Message) -> ZomeApiResult<Address> {
+        let entry = Entry::App("message".into(), entry.into());
+        let address = hdk::commit_entry(&entry)?;
+        Ok(address)
+    }
+
+    #[zome_fn("hc_public")]
+    fn get_message(address: Address) -> ZomeApiResult<Option<Entry>> {
+        hdk::get_entry(&address)
+    }
+}
+
+```
+- run ```hc package``` to make sure it builds
+- Update the generated test and run it ```hc test```
+```jsx
+const path = require('path')
+const tape = require('tape')
+
+const { Orchestrator, Config, tapeExecutor, singleConductor, combine  } = require('@holochain/try-o-rama')
+
+process.on('unhandledRejection', error => {
+  // Will print "unhandledRejection err is not defined"
+  console.error('got unhandledRejection:', error);
+});
+
+const dnaPath = path.join(__dirname, "../dist/peer_chat.dna.json")
+
+const orchestrator = new Orchestrator({
+  middleware: combine(
+    // squash all instances from all conductors down into a single conductor,
+    // for in-memory testing purposes.
+    // Remove this middleware for other "real" network types which can actually
+    // send messages across conductors
+    singleConductor,
+
+    // use the tape harness to run the tests, injects the tape API into each scenario
+    // as the second argument
+    tapeExecutor(require('tape'))
+  ),
+
+  globalConfig: {
+    logger: false,
+    network: {
+      type: 'sim2h',
+      sim2h_url: 'wss://localhost:9000'
+    }
+  },
+
+  // the following are optional:
+
+  waiter: {
+    softTimeout: 5000,
+    hardTimeout: 10000,
+  },
+})
+
+const conductorConfig = {
+  instances: {
+    chat: Config.dna(dnaPath, 'scaffold-test')
+  }
+}
+
+orchestrator.registerScenario("Post a message and check it can be retrieved.", async (s, t) => {
+
+  const {alice, bob} = await s.players({alice: conductorConfig, bob: conductorConfig})
+
+  // Make a call to a Zome function
+  // indicating the function, and passing it an input
+  const addr = await alice.call("chat", "chat", "post_message", {"entry" : {"id": "messageId1", "createdAt": 1234567, "text": "A test message"}})
+  // Wait for all network activity to
+  await s.consistency()
+
+  const result = await alice.call("chat", "chat", "get_message", {"address": addr.Ok})
+
+  // check for equality of the actual and expected results
+  t.deepEqual(result, { Ok: { App: [ 'message', '{"id":"messageId1","createdAt":1234567,"text":"A test message"}' ] } })
+})
+
+orchestrator.run()
+
+```
+
+Cool now we can com mit an entry and retrieve if we know the Address, sort of useful but our UI design is to retrieve a list of messages. To do this we need to link our posted messages to soemthing we call an anchor. There is a new crate called **holochin_anchors** that we can use to create the anchor that we will link the posted messags from. Then we can write a new function to get all the messages.
+
+I'm using 0.0.40-alpha1 that I built locally from the holocahin-rust repo as I need a fix that's not in the Holonix version yet. To make sure yarn runs the right binary my package.json scripts looks like this, note the **TRYORAMA_HOLOCHAIN_PATH** variable.
+
+```json
+  "scripts": {
+    "test": "cd dna-src/peer_chat && TRYORAMA_HOLOCHAIN_PATH=~/holochain/Holochain/holochain-rust/.cargo/bin/holochain ~/holochain/Holochain/holochain-rust/.cargo/bin/hc test",
+    "build": "cd dna-src/peer_chat && ~/holochain/Holochain/holochain-rust/.cargo/bin/hc package"
+  },
+```
+
+- Add the rust dependency to the cargo.toml file 
+```rust
+holochain_anchors = "0.1.1"
+```
+- In the lib.rs file add the hdk prelude for LinkMatch
+```rust
+use hdk::prelude::LinkMatch;
+```
+- Add the entry definitions for the anchor
+```rust
+    #[entry_def]
+    fn anchor_def() -> ValidatingEntryType {
+        holochain_anchors::anchor_definition()
+    }
+    
+    #[entry_def]
+    fn root_anchor_def() -> ValidatingEntryType {
+        holochain_anchors::root_anchor_definition()
+    }
+```
+- Update the message entry def to be able to link from the achor
+```rust
+#[entry_def]
+     fn message_entry_def() -> ValidatingEntryType {
+        entry!(
+            name: "message",
+            description: "The message in a chat list",
+            sharing: Sharing::Public,
+            validation_package: || {
+                hdk::ValidationPackageDefinition::Entry
+            },
+            validation: | _validation_data: hdk::EntryValidationData<Message>| {
+                Ok(())
+            },
+            links: [
+                from!(
+                    holochain_anchors::ANCHOR_TYPE,
+                    link_type: "motorcycle_link_to",
+                    validation_package: || {
+                        hdk::ValidationPackageDefinition::Entry
+                    },
+
+                    validation: |_validation_data: hdk::LinkValidationData| {
+                        Ok(())
+                    }
+                )
+            ]
+        )
+    }
+```
+Now add the code to Post a new message, get a message by its Address and also get all messages linked to the Anchor.
+```rust
+#[zome_fn("hc_public")]
+    fn post_message(entry: Message) -> ZomeApiResult<Address> {
+        let entry = Entry::App("message".into(), entry.into());
+        let address = hdk::commit_entry(&entry)?;
+        let anchor_address = holochain_anchors::create_anchor("messages".into(), "mine".into())?;
+        hdk::link_entries(&anchor_address, &address, "message_link_to", "")?;
+        Ok(address)
+    }
+
+    #[zome_fn("hc_public")]
+    fn get_message(address: Address) -> ZomeApiResult<Option<Entry>> {
+        hdk::get_entry(&address)
+    }
+
+    #[zome_fn("hc_public")]
+    fn get_messages(anchor_type: String, anchor_text: String) -> ZomeApiResult<Vec<Message>> {
+        let anchor_address = holochain_anchors::create_anchor(anchor_type, anchor_text)?;
+        hdk::utils::get_links_and_load_type(&anchor_address, LinkMatch::Exactly("message_link_to"), LinkMatch::Any)
+    }
+```
+Now let's test our code with Try-O-Rama the Holochain test framework. It's very similar to other frameworks like Mocha. The code below sets up the singleConductor to use sim2h_server and runs 3 tests with the Alice player.
+
+```jsx
+const path = require('path')
+const tape = require('tape')
+const { Orchestrator, Config, tapeExecutor, singleConductor, combine  } = require('@holochain/try-o-rama')
+
+process.on('unhandledRejection', error => {
+  console.error('got unhandledRejection:', error);
+});
+
+const dnaPath = path.join(__dirname, "../dist/peer_chat.dna.json")
+
+const orchestrator = new Orchestrator({
+  middleware: combine(
+    singleConductor,
+    tapeExecutor(require('tape'))
+  ),
+  globalConfig: {
+    logger: false,
+    network: {
+      type: 'sim2h',
+      sim2h_url: 'wss://localhost:9000'
+    }
+  },
+  waiter: {
+    softTimeout: 5000,
+    hardTimeout: 10000,
+  },
+})
+
+const conductorConfig = {
+  instances: {
+    chat: Config.dna(dnaPath, 'chat-series')
+  }
+}
+
+orchestrator.registerScenario("Post a message.", async (s, t) => {
+  const {alice} = await s.players({alice: conductorConfig})
+  const addr = await alice.call("chat", "chat", "post_message", {"entry" : {"id": "messageId1", "createdAt": 1234567, "text": "A test message"}})
+  await s.consistency()
+  t.deepEqual(addr.Ok.length, 46)
+})
+
+orchestrator.registerScenario("Post a message and check it can be retrieved.", async (s, t) => {
+  const {alice} = await s.players({alice: conductorConfig})
+  const addr = await alice.call("chat", "chat", "post_message", {"entry" : {"id": "messageId1", "createdAt": 1234567, "text": "A test message"}})
+  await s.consistency()
+  const result = await alice.call("chat", "chat", "get_message", {"address": addr.Ok})
+  t.deepEqual(result, { Ok: { App: [ 'message', '{"id":"messageId1","createdAt":1234567,"text":"A test message"}' ] } })
+})
+
+orchestrator.registerScenario("Post two messages and check they can be listed.", async (s, t) => {
+  const {alice} = await s.players({alice: conductorConfig})
+  const addr = await alice.call("chat", "chat", "post_message", {"entry" : {"id": "messageId1", "createdAt": 1234567, "text": "A test message"}})
+  await alice.call("chat", "chat", "post_message", {"entry" : {"id": "messageId2", "createdAt": 1234568, "text": "A second test message"}})
+  await s.consistency()
+  const all_messages = await alice.call("chat", "chat", "get_messages", {"anchor_type": "messages", "anchor_text": "mine"});
+  t.deepEqual(all_messages.Ok.length, 2);
+})
+
+orchestrator.run()
+```
+Awesome, the zome code meets the requirements for the UI. One of the reasons I love using Storybook is that I can develop my "Welcome" story to show all of the built components. Not only does this make it easy to see what the app is looking like but i can then either make a layout component or just copy the code over to the "live" app. This is my Welcome story for this first stage of a Super Basic Chat.
+```jsx
+import React from 'react';
+import '../src/index.css'
+import { action } from '@storybook/addon-actions';
+import { linkTo } from '@storybook/addon-links';
+import { CreateMessageForm } from '../src/components/CreateMessageForm/index';
+import { Message } from '../src/components/Message/index';
+import { MessageList } from '../src/components/MessageList/index';
+import { testMessages } from '../src/testData/messageList';
+
+export default {
+  title: 'Welcome',
+};
+
+export const toPeerChat = () => {
+  let messageListProps = {
+    messages: testMessages
+  }
+  let createMessageFormprops = {
+    sendMessage: action('Send the message')
+  }
+  const story = (
+    <main>
+      <section>
+        <col->
+          <a href="https://github.com/holochain/chat-series" alt="github repo for chat series"><h1>Peer Chat Developer Series</h1></a>
+          <MessageList {...messageListProps} />
+          <CreateMessageForm {...createMessageFormprops} />
+        </col->
+      </section>
+    </main>
+  );
+  return story
+};
+
+toPeerChat.story = {
+  name: 'Super Basic Chat',
+};
+```
+Next thing is to update the App.js file to show our shiny new components
+```jsx
+import React from 'react';
+import logo from './logo.svg';
+import './index.css'
+import { CreateMessageForm } from './components/CreateMessageForm/index';
+import { Message } from './components/Message/index';
+import { MessageList } from './components/MessageList/index';
+import { testMessages } from './testData/messageList';
+
+function App() {
+  let messageListProps = {
+    messages: testMessages
+  }
+  let createMessageFormprops = {
+    sendMessage: () => {}
+  }
+  return (
+    <main>
+      <section>
+        <col->
+          <MessageList {...messageListProps} />
+          <CreateMessageForm {...createMessageFormprops} />
+        </col->
+      </section>
+    </main>
+  );
+}
+
+export default App;
+```
+And run ```yarn start```
+
+## Connecting the UI to the Holochain Conductor
+
+Our hApp is looking good so far in test and component library mode so let's turn it into a complete hApp by connecting the UI to a running Holochain conductor.
+
+### Get a conductor running
+
+- Create a test agent key with no passphrase in your root directory
+ ```
+    hc keygen -n --path ./agent1.keystore
+```
+- Create a conductor-config.toml in the root and add (make sure you use the Public address you generated)
+```rust
+    # -----------  Agents  -----------
+    [[agents]]
+      id = "test_agent1"
+      name = "Agent 1"
+      public_address = "HcSCJzVFVEJ3aarhscwK7KRN84A5TxsdkWPTs38oQJs3oon4rGj6YHtOFr3xnga"
+      keystore_file = "./agent1.keystore"
+```
+- Package your DNA ```yarn package```
+    > I added the following script
+    > ```json= 
+    > "package": "cd dna-src/peer_chat && ~/holochain/Holochain/holochain-rust/.cargo/bin/hc package",
+    > ```
+
+- and add the DNA section to the config
+```rust
+    # -----------  DNAs  -----------
+    [[dnas]]
+      id = "Peer Chat"
+      file = "./dna-src/peer_chat/dist/peer_chat.dna.json"
+      hash = "QmRKwm988KKHTSsELCqfk1rNjQ3jckHbAACzpR4wNeC7MB"
+```
+- Add an instance of your DNA for your Agent and set it's storage to memory
+    > good for testing as it resets each time you stop the conductor
+```rust
+    [[instances]]
+      id = "peer-chat"
+      dna = "Peer Chat"
+      agent = "test_agent1"
+    [instances.storage]
+      type = "memory"
+```
+- Configure thee websocket so the UI can connect to the conductor on PORT:3401
+```rust
+    [[interfaces]]
+      id = "websocket_interface"
+      admin = true
+    [interfaces.driver]
+      type = "websocket"
+      port = 3401
+    [[interfaces.instances]]
+      id = "peer-chat"
+```
+- Lastly set up the same networking we used in the Try-O-Rama tests
+  > You will need to run your own sim2h_server
+```rust
+    # -----------  Networking  -----------
+
+    [network]
+      type = "sim2h"
+      sim2h_url = 'wss://localhost:9000'
+```
+- Run the conductor ```yarn conductor```
+    > I added the following script
+    > ```json
+    > "conductor": "~/holochain/Holochain/holochain-rust/.cargo/bin/holochain -c ./conductor-config.toml"
+    > ```
+
+### Connect UI to conductor
+> I fixed the list rendering issue by moving the key to the MessageList.
+> ```jsx
+> ....
+>  <wrapper->
+>    {
+>      messages
+>       .sort((a, b) => { return b.createdAt - a.createdAt })
+>       .map(message => <Message key={message.id} message={message} />)
+>    }
+>  </wrapper->
+> .....
+> ```
+
+First thing I want to do is the minimal code to be able to post a message to Holochain and prove it worked by logging the returned message Address.
+We are going to modify the index.js to do the connection setup and set properties for the rest of the components.
+
+- First update app.js to accept properties
+```jsx
+    ...
+    export const App = ({ sendMessage, messages }) => (
+      <main>
+        <section>
+          <col->
+            <MessageList messages={messages} />
+            <CreateMessageForm sendMessage={sendMessage} />
+          </col->
+        </section>
+      </main>
+    );
+    ...
+```
+- Install **@holochain/hc-web-client**
+- Do your imports and set up a debug Process variable for the websocket connection. When we use Holoscape the connection is automatically setup for you.
+```jsx
+    import React from 'react';
+    import ReactDOM from 'react-dom';
+    import './index.css';
+    import App from './App';
+    import * as serviceWorker from './serviceWorker';
+    import { connect } from '@holochain/hc-web-client'
+    import { testMessages } from './testData/messageList';
+
+    const REACT_APP_WEBSOCKET_INTERFACE = process.env.REACT_APP_WEBSOCKET_INTERFACE; // Use for debug
+```
+- In the constructor we will create the connection and store it in state and create an **action** that will be the sendMessage function whcih will log the result of our zome call.
+```jsx
+    export class View extends React.Component {
+      constructor (props) {
+        super(props)
+        let connectUrl = {};
+        if(REACT_APP_WEBSOCKET_INTERFACE){
+          connectUrl = { url: REACT_APP_WEBSOCKET_INTERFACE }
+        };
+        this.state = {
+          holochainConnection: connect(connectUrl),
+          messages: testMessages
+        };
+        this.actions = {
+          sendMessage: ({ text }) => {
+            const message = {
+              id: 'text',
+              createdAt: Math.floor(Date.now() / 1000),
+              text: text
+            };
+            console.log(message);
+            this.makeHolochainCall('peer-chat/chat/post_message', {message}, (result) => {
+              console.log('message posted', result);
+            });
+          }
+        };
+      };
+ ```
+ - Now we render the App and make a function to simplify calling the zome
+```jsx
+      makeHolochainCall (callString, params, callback) {
+        const [instanceId, zome, func] = callString.split('/')
+        this.state.holochainConnection.then(({ callZome }) => {
+          callZome(instanceId, zome, func)(params).then((result) => callback(JSON.parse(result)))
+        });
+      };
+
+      render () {
+        let props = {
+          messages: this.state.messages,
+          sendMessage: this.actions.sendMessage
+        }
+        return (
+          <App {...props} />
+        );
+      };
+    }
+```
+You can now run the UI which will connect to the running conductor and post a message 😎
