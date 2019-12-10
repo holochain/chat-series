@@ -1008,3 +1008,4 @@ We are going to modify the index.js to do the connection setup and set propertie
     }
 ```
 You can now run the UI which will connect to the running conductor and post a message 😎
+And run ```yarn start```
