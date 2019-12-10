@@ -87,8 +87,9 @@ mod chat {
     }
 
     #[zome_fn("hc_public")]
-    fn post_message(entry: Message) -> ZomeApiResult<Address> {
-        let entry = Entry::App("message".into(), entry.into());
+    fn post_message(message: Message) -> ZomeApiResult<Address> {
+        hdk::debug(format!("Message Posted: {:?}", &message)).ok();
+        let entry = Entry::App("message".into(), message.into());
         let address = hdk::commit_entry(&entry)?;
         let anchor_address = holochain_anchors::create_anchor("messages".into(), "mine".into())?;
         hdk::link_entries(&anchor_address, &address, "message_link_to", "")?;

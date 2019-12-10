@@ -1,0 +1,35 @@
+# -----------  Agents  -----------
+[[agents]]
+  id = "test_agent1"
+  name = "Agent 1"
+  public_address = "HcSCJzVFVEJ3aarhscwK7KRN84A5TxsdkWPTs38oQJs3oon4rGj6YHtOFr3xnga"
+  keystore_file = "./agent1.keystore"
+
+# -----------  DNAs  -----------
+[[dnas]]
+  id = "Peer Chat"
+  file = "./dna-src/peer_chat/dist/peer_chat.dna.json"
+  uuid = "testme"
+  hash = "QmRKwm988KKHTSsELCqfk1rNjQ3jckHbAACzpR4wNeC7MB"
+
+[[instances]]
+  id = "peer-chat"
+  dna = "Peer Chat"
+  agent = "test_agent1"
+[instances.storage]
+  type = "memory"
+
+[[interfaces]]
+  id = "websocket_interface"
+  admin = true
+[interfaces.driver]
+  type = "websocket"
+  port = 3401
+[[interfaces.instances]]
+  id = "peer-chat"
+
+# -----------  Networking  -----------
+
+[network]
+  type = "sim2h"
+  sim2h_url = 'wss://localhost:9000'
