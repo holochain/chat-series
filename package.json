@@ -1,11 +1,12 @@
 {
   "name": "chat-series",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "A full featured Holochain P2P Chat hApp",
   "main": "index.js",
   "scripts": {
     "test": "cd dna-src/peer_chat && TRYORAMA_HOLOCHAIN_PATH=~/holochain/Holochain/holochain-rust/.cargo/bin/holochain ~/holochain/Holochain/holochain-rust/.cargo/bin/hc test",
-    "build": "cd dna-src/peer_chat && ~/holochain/Holochain/holochain-rust/.cargo/bin/hc package"
+    "package": "cd dna-src/peer_chat && ~/holochain/Holochain/holochain-rust/.cargo/bin/hc package",
+    "conductor": "~/holochain/Holochain/holochain-rust/.cargo/bin/holochain -c ./conductor-config.toml"
   },
   "repository": {
     "type": "git",

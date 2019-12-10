@@ -9,7 +9,7 @@ const time = timestamp => {
 }
 
 export const Message = ({ message }) =>
-  <li key={message.id} className={style.component}>
+  <li className={style.component}>
     <div>
       <span name='createAtTime'>{time(message.createdAt)}</span>
       <p>

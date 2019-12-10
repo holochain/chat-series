@@ -586,7 +586,10 @@ const orchestrator = new Orchestrator({
 
   globalConfig: {
     logger: false,
-    network: 'memory',  // must use singleConductor middleware if using in-memory network
+    network: {
+      type: 'sim2h',
+      sim2h_url: 'wss://localhost:9000'
+    }
   },
 
   // the following are optional:
@@ -840,4 +843,169 @@ function App() {
 
 export default App;
 ```
+And run ```yarn start```
+
+## Connecting the UI to the Holochain Conductor
+
+Our hApp is looking good so far in test and component library mode so let's turn it into a complete hApp by connecting the UI to a running Holochain conductor.
+
+### Get a conductor running
+
+- Create a test agent key with no passphrase in your root directory
+ ```
+    hc keygen -n --path ./agent1.keystore
+```
+- Create a conductor-config.toml in the root and add (make sure you use the Public address you generated)
+```rust
+    # -----------  Agents  -----------
+    [[agents]]
+      id = "test_agent1"
+      name = "Agent 1"
+      public_address = "HcSCJzVFVEJ3aarhscwK7KRN84A5TxsdkWPTs38oQJs3oon4rGj6YHtOFr3xnga"
+      keystore_file = "./agent1.keystore"
+```
+- Package your DNA ```yarn package```
+    > I added the following script
+    > ```json= 
+    > "package": "cd dna-src/peer_chat && ~/holochain/Holochain/holochain-rust/.cargo/bin/hc package",
+    > ```
+
+- and add the DNA section to the config
+```rust
+    # -----------  DNAs  -----------
+    [[dnas]]
+      id = "Peer Chat"
+      file = "./dna-src/peer_chat/dist/peer_chat.dna.json"
+      hash = "QmRKwm988KKHTSsELCqfk1rNjQ3jckHbAACzpR4wNeC7MB"
+```
+- Add an instance of your DNA for your Agent and set it's storage to memory
+    > good for testing as it resets each time you stop the conductor
+```rust
+    [[instances]]
+      id = "peer-chat"
+      dna = "Peer Chat"
+      agent = "test_agent1"
+    [instances.storage]
+      type = "memory"
+```
+- Configure thee websocket so the UI can connect to the conductor on PORT:3401
+```rust
+    [[interfaces]]
+      id = "websocket_interface"
+      admin = true
+    [interfaces.driver]
+      type = "websocket"
+      port = 3401
+    [[interfaces.instances]]
+      id = "peer-chat"
+```
+- Lastly set up the same networking we used in the Try-O-Rama tests
+  > You will need to run your own sim2h_server
+```rust
+    # -----------  Networking  -----------
+
+    [network]
+      type = "sim2h"
+      sim2h_url = 'wss://localhost:9000'
+```
+- Run the conductor ```yarn conductor```
+    > I added the following script
+    > ```json
+    > "conductor": "~/holochain/Holochain/holochain-rust/.cargo/bin/holochain -c ./conductor-config.toml"
+    > ```
+
+### Connect UI to conductor
+> I fixed the list rendering issue by moving the key to the MessageList.
+> ```jsx
+> ....
+>  <wrapper->
+>    {
+>      messages
+>       .sort((a, b) => { return b.createdAt - a.createdAt })
+>       .map(message => <Message key={message.id} message={message} />)
+>    }
+>  </wrapper->
+> .....
+> ```
+
+First thing I want to do is the minimal code to be able to post a message to Holochain and prove it worked by logging the returned message Address.
+We are going to modify the index.js to do the connection setup and set properties for the rest of the components.
+
+- First update app.js to accept properties
+```jsx
+    ...
+    export const App = ({ sendMessage, messages }) => (
+      <main>
+        <section>
+          <col->
+            <MessageList messages={messages} />
+            <CreateMessageForm sendMessage={sendMessage} />
+          </col->
+        </section>
+      </main>
+    );
+    ...
+```
+- Install **@holochain/hc-web-client**
+- Do your imports and set up a debug Process variable for the websocket connection. When we use Holoscape the connection is automatically setup for you.
+```jsx
+    import React from 'react';
+    import ReactDOM from 'react-dom';
+    import './index.css';
+    import App from './App';
+    import * as serviceWorker from './serviceWorker';
+    import { connect } from '@holochain/hc-web-client'
+    import { testMessages } from './testData/messageList';
+
+    const REACT_APP_WEBSOCKET_INTERFACE = process.env.REACT_APP_WEBSOCKET_INTERFACE; // Use for debug
+```
+- In the constructor we will create the connection and store it in state and create an **action** that will be the sendMessage function whcih will log the result of our zome call.
+```jsx
+    export class View extends React.Component {
+      constructor (props) {
+        super(props)
+        let connectUrl = {};
+        if(REACT_APP_WEBSOCKET_INTERFACE){
+          connectUrl = { url: REACT_APP_WEBSOCKET_INTERFACE }
+        };
+        this.state = {
+          holochainConnection: connect(connectUrl),
+          messages: testMessages
+        };
+        this.actions = {
+          sendMessage: ({ text }) => {
+            const message = {
+              id: 'text',
+              createdAt: Math.floor(Date.now() / 1000),
+              text: text
+            };
+            console.log(message);
+            this.makeHolochainCall('peer-chat/chat/post_message', {message}, (result) => {
+              console.log('message posted', result);
+            });
+          }
+        };
+      };
+ ```
+ - Now we render the App and make a function to simplify calling the zome
+```jsx
+      makeHolochainCall (callString, params, callback) {
+        const [instanceId, zome, func] = callString.split('/')
+        this.state.holochainConnection.then(({ callZome }) => {
+          callZome(instanceId, zome, func)(params).then((result) => callback(JSON.parse(result)))
+        });
+      };
+
+      render () {
+        let props = {
+          messages: this.state.messages,
+          sendMessage: this.actions.sendMessage
+        }
+        return (
+          <App {...props} />
+        );
+      };
+    }
+```
+You can now run the UI which will connect to the running conductor and post a message 😎
 And run ```yarn start```
