@@ -6,10 +6,12 @@ import { MessageList } from './components/MessageList/index';
 export const App = ({ sendMessage, messages }) => (
   <main>
     <section>
-      <col->
-        <MessageList messages={messages} />
-        <CreateMessageForm sendMessage={sendMessage} />
-      </col->
+      <row->
+        <col->
+          <MessageList messages={messages} />
+          <CreateMessageForm sendMessage={sendMessage} />
+        </col->
+      </row->
     </section>
   </main>
 );
