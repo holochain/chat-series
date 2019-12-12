@@ -27,16 +27,10 @@ export class View extends React.Component {
           text: text
         }
         this.setState({
-            messages: [ ...this.state.messages, message ]
-          })
+          messages: [ ...this.state.messages, message ]
+        })
         this.makeHolochainCall('peer-chat/chat/post_message', {message}, (result) => {
           console.log('message posted', result);
-        })
-      },
-      getMessages: () => {
-        this.makeHolochainCall('peer-chat/chat/get_messages', {}, (result) => {
-          console.log('messages retrieved', result.Ok);
-          this.setState({ messages: result.Ok });
         })
       }
     };
