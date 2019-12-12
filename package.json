@@ -6,7 +6,10 @@
   "scripts": {
     "test": "cd dna-src/peer_chat && TRYORAMA_HOLOCHAIN_PATH=~/holochain/Holochain/holochain-rust/.cargo/bin/holochain ~/holochain/Holochain/holochain-rust/.cargo/bin/hc test",
     "package": "cd dna-src/peer_chat && ~/holochain/Holochain/holochain-rust/.cargo/bin/hc package",
-    "conductor": "~/holochain/Holochain/holochain-rust/.cargo/bin/holochain -c ./conductor-config.toml"
+    "conductor": "~/holochain/Holochain/holochain-rust/.cargo/bin/holochain -c ./conductor-config.toml",
+    "start": "nf start -p 3000",
+    "ui:start": "cd ui-src && yarn start",
+    "holoscape:dev": "cd ../holoscape && yarn holoscape:dev"
   },
   "repository": {
     "type": "git",
@@ -21,5 +24,8 @@
   "bugs": {
     "url": "https://github.com/holochain/chat-series/issues"
   },
-  "homepage": "https://github.com/holochain/chat-series#readme"
+  "homepage": "https://github.com/holochain/chat-series#readme",
+  "dependencies": {
+    "foreman": "^3.0.1"
+  }
 }
