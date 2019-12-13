@@ -1,10 +1,14 @@
 # Developing a Full Featured P2P Chat hApp for Holochain - Series
 > [name="Philip Beadle"]
+> 
+**Please use the master branch README as changes happen dring the dev process as holochain and crates change**
 ## Introduction
 Over the last 18 months or so I have been building various hApps to demonstrate various Holochain features and to test out Holochain from a hApp developers point of view. Most of that work was done in the [Identity Manager](!https://github.com/holochain/identity-manager/) and various iterations of a chat hApp. Both of these hApps have now become quite complicated as they implement a large number of Holochain features and have had to be refactored as Holochain evolved. Thus they are not really useful as teaching tools and do not provide a navigable path to becoming a Holochain hApp developer. Whilst the team was in Barcelona November 2019 we came upm with the idea of a series of chat hApps that progressively add features to become a full featured chat hApp using a series of branches that show the development with step by step instructions in the README.md file of what was done. This README.md will be like a blog series and along with the explicit code steps will contain discussion around why things were done. The hApp will be built so that it runs in a development environment, in Holo and also Holoscape.
 
 The **master** branch contains the latest code containing all of the work done so please remember to start from the **lets-get-started** branch. The [Holochain Documentation](!https://developer.holochain.org/docs/) and [hdk API](!https://docs.rs/hdk/0.0.40-alpha1/hdk/) will be referenced and you should familiarise yourself with [Holochain](!https://developer.holochain.org/docs/) the [Core Concepts](!https://developer.holochain.org/docs/concepts/), how to [install](!https://developer.holochain.org/docs/install) and the [tutorials](!https://developer.holochain.org/docs/tutorials/coreconcepts) before you attempt to follow this development journey. 
-As you work your way through the steps you can compare your work by selecting the branch for the step you are up to. Specific commits will also be referenced. The purpose is to enable developers to start with a very simple Chat hApp to get used to building Holochain hApps and then work through the series as more and more features are built. The projected features will be:
+As you work your way through the steps you can compare your work by selecting the branch for the step you are up to. Specific commits will also be referenced. 
+
+The purpose is to enable developers to start with a very simple Chat hApp to get used to building Holochain hApps and then work through the series as more and more features are built. The projected features will be:
 
 - [ ] A simple straight up chat feed that only allows anyone to run it and add messages to a single stream of messages.
 - [ ] Next is to add a "handle" and "avatar" to distinguish which Agent wrote the message
@@ -473,6 +477,9 @@ At this point the UI does everything we need, is fully unit tested and has Stori
   }
 ```
 And we need a create message and a list messages function in our zome. Follow the steps in the tutorial https://developer.holochain.org/docs/tutorials/coreconcepts/hello_holo/ but make the project name **peer_chat** and the zome **chat**
+
+**Make sure you run ```nix-shell``` in the root directory so you are using the same version of the hdk as I am**
+
 - Now update the structs and zome names etc in the generated lib.rs file to reflect the entry we designed above.
 ```rust
 #![feature(proc_macro_hygiene)]
@@ -1054,3 +1061,153 @@ When the hApp first starts up I want to list all of the messages and when a new 
  ```
 Now when you run the UI any messages will appear and new ones will too. 
 We have now built the most simple chat hApp I could think of, but it shows off the process and all the bits we need to continue building a more useful chat hApp.
+
+## Holoscape
+
+Let's run this in Holoscape so we don't have to run the conductor and UI as separate steps. To do we need a hApp Bundle file.
+```rust
+    bridges = []
+
+    [[instances]]
+    name = "Peer Chat"
+    id = "__peer-chat"
+    dna_hash = "QmPVv94DN1egyWvRFsxsyJij5S6WsG2rVPzgR61Qyw8Mid"
+    uri = "file:./dna-src/peer_chat/dist/peer_chat.dna.json"
+
+    [[UIs]]
+    name = "Peer Chat"
+    id = "peer-chat-ui"
+    ui_bundle_hash = "Qm34abcde"
+    uri = "file:./ui-src/build/peer-chat-ui.zip"
+
+    [[UIs.instance_references]]
+    ui_handle = "peer-chat"
+    instance_id = "__peer-chat"
+
+```
+and to zip the built UI I modified the build script to
+```json
+"build": "react-scripts build && cd build && zip -r peer-chat-ui.zip ."
+```
+Now get the latest release of [Holoscape](!https://github.com/holochain/holoscape/releases) and install the hApp 😎
+
+## Update the Anchors crate
+
+I have made an update to the Anchors crate to make it simpler to use and also updated the zome to remove the magic strings.
+
+Update the Cargo.toml
+```rust
+    holochain_anchors = { git = "https://github.com/holochain/holochain_anchors" , branch = "1-change-create_anchor-to-anchor" }
+```
+and here's the whole zome so you can see how Anchors now works and how to keep magic strings out of your code.
+```rust
+    #![feature(proc_macro_hygiene)]
+    #[macro_use]
+    extern crate hdk;
+    extern crate hdk_proc_macros;
+    extern crate serde;
+    #[macro_use]
+    extern crate serde_derive;
+    extern crate serde_json;
+    #[macro_use]
+    extern crate holochain_json_derive;
+
+    use hdk::{
+        entry_definition::ValidatingEntryType,
+        error::ZomeApiResult,
+    };
+    use hdk::holochain_core_types::{
+        entry::Entry,
+        dna::entry_types::Sharing,
+    };
+    use hdk::holochain_json_api::{
+        json::JsonString,
+        error::JsonError
+    };
+    use hdk::holochain_persistence_api::{
+        cas::content::Address
+    };
+    use hdk_proc_macros::zome;
+    use hdk::prelude::LinkMatch;
+    use holochain_anchors::anchor;
+
+    #[derive(Serialize, Deserialize, Debug, DefaultJson,Clone)]
+    #[serde(rename_all = "camelCase")]
+    pub struct Message {
+        id: String,
+        created_at: u32,
+        text: String
+    }
+
+    const MESSAGE_LINK_TYPE: &str = "message_link_to";
+    const MESSAGE_ENTRY_NAME: &str = "message";
+    const MESSAGE_ANCHOR_TYPE: &str = "messages";
+    const MESSAGE_ANCHOR_TEXT: &str = "mine";
+
+    #[zome]
+    mod chat {
+
+        #[init]
+        fn init() {
+            Ok(())
+        }
+
+        #[validate_agent]
+        pub fn validate_agent(validation_data: EntryValidationData<AgentId>) {
+            Ok(())
+        }
+
+        #[entry_def]
+         fn message_entry_def() -> ValidatingEntryType {
+            entry!(
+                name: MESSAGE_ENTRY_NAME,
+                description: "The message in a chat list",
+                sharing: Sharing::Public,
+                validation_package: || {
+                    hdk::ValidationPackageDefinition::Entry
+                },
+                validation: | _validation_data: hdk::EntryValidationData<Message>| {
+                    Ok(())
+                },
+                links: [
+                    from!(
+                        holochain_anchors::ANCHOR_TYPE,
+                        link_type: MESSAGE_LINK_TYPE,
+                        validation_package: || {
+                            hdk::ValidationPackageDefinition::Entry
+                        },
+
+                        validation: |_validation_data: hdk::LinkValidationData| {
+                            Ok(())
+                        }
+                    )
+                ]
+            )
+        }
+
+        #[entry_def]
+        fn anchor_def() -> ValidatingEntryType {
+            holochain_anchors::anchor_definition()
+        }
+
+        #[zome_fn("hc_public")]
+        fn post_message(message: Message) -> ZomeApiResult<Address> {
+            hdk::debug(format!("Message Posted: {:?}", &message)).ok();
+            let entry = Entry::App(MESSAGE_ENTRY_NAME.into(), message.into());
+            let address = hdk::commit_entry(&entry)?;
+            hdk::link_entries(&anchor(MESSAGE_ANCHOR_TYPE.to_string(), MESSAGE_ANCHOR_TEXT.to_string())?, &address, MESSAGE_LINK_TYPE, "")?;
+            Ok(address)
+        }
+
+        #[zome_fn("hc_public")]
+        fn get_message(address: Address) -> ZomeApiResult<Option<Entry>> {
+            hdk::get_entry(&address)
+        }
+
+        #[zome_fn("hc_public")]
+        fn get_messages() -> ZomeApiResult<Vec<Message>> {
+            hdk::utils::get_links_and_load_type(&anchor(MESSAGE_ANCHOR_TYPE.to_string(), MESSAGE_ANCHOR_TEXT.to_string())?, LinkMatch::Exactly(MESSAGE_LINK_TYPE), LinkMatch::Any)
+        }
+    }
+```
+
