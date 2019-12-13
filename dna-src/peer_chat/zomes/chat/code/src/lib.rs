@@ -26,6 +26,7 @@ use hdk::holochain_persistence_api::{
 };
 use hdk_proc_macros::zome;
 use hdk::prelude::LinkMatch;
+use holochain_anchors::anchor;
 
 #[derive(Serialize, Deserialize, Debug, DefaultJson,Clone)]
 #[serde(rename_all = "camelCase")]
@@ -34,6 +35,11 @@ pub struct Message {
     created_at: u32,
     text: String
 }
+
+const MESSAGE_LINK_TYPE: &str = "message_link_to";
+const MESSAGE_ENTRY_NAME: &str = "message";
+const MESSAGE_ANCHOR_TYPE: &str = "messages";
+const MESSAGE_ANCHOR_TEXT: &str = "mine";
 
 #[zome]
 mod chat {
@@ -51,7 +57,7 @@ mod chat {
     #[entry_def]
      fn message_entry_def() -> ValidatingEntryType {
         entry!(
-            name: "message",
+            name: MESSAGE_ENTRY_NAME,
             description: "The message in a chat list",
             sharing: Sharing::Public,
             validation_package: || {
@@ -63,7 +69,7 @@ mod chat {
             links: [
                 from!(
                     holochain_anchors::ANCHOR_TYPE,
-                    link_type: "message_link_to",
+                    link_type: MESSAGE_LINK_TYPE,
                     validation_package: || {
                         hdk::ValidationPackageDefinition::Entry
                     },
@@ -81,18 +87,12 @@ mod chat {
         holochain_anchors::anchor_definition()
     }
 
-    #[entry_def]
-    fn root_anchor_def() -> ValidatingEntryType {
-        holochain_anchors::root_anchor_definition()
-    }
-
     #[zome_fn("hc_public")]
     fn post_message(message: Message) -> ZomeApiResult<Address> {
         hdk::debug(format!("Message Posted: {:?}", &message)).ok();
-        let entry = Entry::App("message".into(), message.into());
+        let entry = Entry::App(MESSAGE_ENTRY_NAME.into(), message.into());
         let address = hdk::commit_entry(&entry)?;
-        let anchor_address = holochain_anchors::create_anchor("messages".into(), "mine".into())?;
-        hdk::link_entries(&anchor_address, &address, "message_link_to", "")?;
+        hdk::link_entries(&anchor(MESSAGE_ANCHOR_TYPE.to_string(), MESSAGE_ANCHOR_TEXT.to_string())?, &address, MESSAGE_LINK_TYPE, "")?;
         Ok(address)
     }
 
@@ -103,7 +103,6 @@ mod chat {
 
     #[zome_fn("hc_public")]
     fn get_messages() -> ZomeApiResult<Vec<Message>> {
-        let anchor_address = holochain_anchors::create_anchor("messages".into(), "mine".into())?;
-        hdk::utils::get_links_and_load_type(&anchor_address, LinkMatch::Exactly("message_link_to"), LinkMatch::Any)
+        hdk::utils::get_links_and_load_type(&anchor(MESSAGE_ANCHOR_TYPE.to_string(), MESSAGE_ANCHOR_TEXT.to_string())?, LinkMatch::Exactly(MESSAGE_LINK_TYPE), LinkMatch::Any)
     }
 }

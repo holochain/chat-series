@@ -7,7 +7,7 @@ const emptyList = (
     <span role='img' aria-label='post'>
       📝
     </span>
-    <h2>No Messages Yet</h2>
+    <h2>No Messages Yet Nico</h2>
     <p>Be the first to post in this conversation!</p>
   </div>
 )

@@ -1,0 +1,18 @@
+bridges = []
+
+[[instances]]
+name = "Peer Chat"
+id = "__peer-chat"
+dna_hash = "QmPVv94DN1egyWvRFsxsyJij5S6WsG2rVPzgR61Qyw8Mid"
+uuid = "holoscape-dev"
+uri = "file:./dna-src/peer_chat/dist/peer_chat.dna.json"
+
+[[UIs]]
+name = "Peer Chat"
+id = "peer-chat-ui"
+ui_bundle_hash = "Qm34abcde"
+uri = "http://localhost:3000"
+
+[[UIs.instance_references]]
+ui_handle = "peer-chat"
+instance_id = "__peer-chat"
